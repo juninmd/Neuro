@@ -1,11 +1,36 @@
-﻿name: Validate
+name: Validate
 on:
   pull_request:
   push:
     branches: [main, master]
+
 concurrency:
   group: validate-${{ github.ref }}
   cancel-in-progress: true
+
+# Mesmo gate do reusable-validate (validate-pr), mas com um passo extra de
+# dependencias de sistema: o PyAudio (via realtimestt) compila contra
+# portaudio.h, que nao existe no runner por padrao ("fatal error: portaudio.h:
+# No such file or directory"). O reusable nao aceita passos extras, por isso a
+# action e chamada diretamente aqui.
+permissions:
+  contents: read
+
 jobs:
   check:
-    uses: juninmd/base-actions/.github/workflows/reusable-validate.yml@main
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Dependencias de sistema (audio)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y portaudio19-dev libportaudio2 libasound2-dev
+
+      - uses: juninmd/base-actions/validate-pr@main
+        with:
+          python-version: "3.11"
